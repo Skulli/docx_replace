@@ -36,16 +36,39 @@ module DocxReplace
     private
     DOCUMENT_FILE_PATH = 'word/document.xml'
 
+    def new_temp_file(key = 'docxedit-')
+      if @temp_dir.nil?
+        temp_file = Tempfile.new(key)
+      else
+        temp_file = Tempfile.new(key, @temp_dir)
+      end
+    end
+
     def read_docx_file
-      @document_content = @zip_file.read(DOCUMENT_FILE_PATH)
+      Dir.mktmpdir("docx_replace") do |dir|
+        file = File.join(dir, "document.xml")
+        @zip_file.extract(DOCUMENT_FILE_PATH, file)
+        @document_content = file_content(file)
+      end
+
+      @document_content
+    end
+
+    def file_content(path, delete = false)
+      content = nil
+      File.open(path) do |f|
+        content = f.read
+        f.close
+      end
+
+      FileUtils.rm_rf(path) if delete
+
+      return content
     end
 
     def write_back_to_file(new_path=nil)
-      if @temp_dir.nil?
-        temp_file = Tempfile.new('docxedit-')
-      else
-        temp_file = Tempfile.new('docxedit-', @temp_dir)
-      end
+      temp_file = new_temp_file("docxedit")
+
       Zip::OutputStream.open(temp_file.path) do |zos|
         @zip_file.entries.each do |e|
           unless e.name == DOCUMENT_FILE_PATH
