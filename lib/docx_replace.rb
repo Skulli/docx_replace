@@ -15,8 +15,9 @@ module DocxReplace
       read_docx_files
     end
 
-    def replace(pattern, replacement, multiple_occurrences=false)
-      replace = CGI.escapeHTML(replacement.to_s)
+    def replace(pattern, replacement, multiple_occurrences=false, escape=true)
+      replace = replacement.to_s
+      replace = CGI.escapeHTML(replace) if escape
       replace = replace.gsub("\n", '</w:t><w:br/><w:t>')
       @document_contents.each do |path, document|
         if multiple_occurrences
