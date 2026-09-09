@@ -49,7 +49,7 @@ symdok an der Git-Quelle und nicht am Release. Der Upstream gilt als tot
 
 1. Version in `lib/docx_replace/version.rb` erhöhen
 2. `CHANGELOG.md` ergänzen
-3. Annotiertes Tag `vX.Y.Z` setzen, `git push origin master vX.Y.Z`
+3. Annotiertes Tag `vX.Y.Z` setzen, `git push origin main vX.Y.Z`
 4. In symdok den Tag-Pin im Gemfile nachziehen (`tag: "vX.Y.Z"`) + `bundle install`
 
 Kein `gem push` — siehe oben.
