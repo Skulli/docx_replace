@@ -1,0 +1,172 @@
+# DER RELEASE-WEG: Ein Versions-Tag legt das GitHub-Release an. Tag setzen,
+# fertig. Kein Paket-Push -- das Gem geht nicht zu RubyGems, der Name gehoert
+# dem fremden Original; Konsumenten pinnen per Tag.
+#
+# Muster: release.yml von redlist, ohne Image und ohne Deploy-Tag. Der
+# CHANGELOG wird NICHT automatisch ergaenzt: von Hand gepflegt wird der
+# Abschnitt zur Version, und der steht in den Release-Notizen voran -- er
+# traegt, was aus der Pull-Request-Liste nicht hervorgeht. Die Liste selbst
+# baut GitHub.
+name: Release
+
+on:
+  push:
+    tags:
+      # v[0-9]* und nicht v*: Das offene Glob faengt auch Tags wie
+      # "vorher-noch-testen". Fuer die wuerde ein Release angelegt -- und
+      # dieses Release wuerde zum Startpunkt der naechsten Release-Notizen.
+      - "v[0-9]*"
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # fuer das Release
+
+    steps:
+      # fetch-depth: 0, weil der Schritt unten den vorigen Versions-Tag aus
+      # der Tag-Liste bestimmt und "Tag liegt auf master" die Vorfahren
+      # braucht.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+
+      # Getaggt wird master nach dem Merge, nicht der Branch-Commit. Ein Tag
+      # auf einem ungemergten Branch veroeffentlicht einen Stand, den niemand
+      # auf master findet -- und der eigene Pull Request fehlte in den
+      # Release-Notizen, weil GitHub bis zum getaggten Commit vergleicht.
+      #
+      # Geprueft wird "der getaggte Commit ist von master aus erreichbar",
+      # nicht andersherum: master als Vorfahr von HEAD waere falsch, sobald
+      # jemand einen aelteren Commit taggt -- ein zulaessiger Nachzuegler.
+      - name: Tag liegt auf master
+        # Der Tag-Name kommt ueber die Umgebung und nicht als ${{ }} in den
+        # Shell-Quelltext: Git erlaubt in Ref-Namen fast alles, und
+        # "v1$(befehl)" ist ein gueltiger Tag, der den Trigger trifft.
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          git fetch --no-tags origin master
+          if ! git merge-base --is-ancestor HEAD FETCH_HEAD; then
+            tag_esc=${TAG_NAME//%/%25}
+            tag_esc=${tag_esc//$'\r'/%0D}
+            tag_esc=${tag_esc//$'\n'/%0A}
+            echo "::error::${tag_esc} zeigt auf einen Commit, der nicht auf master liegt." \
+                 "Tag entfernen und auf master neu setzen."
+            exit 1
+          fi
+          echo "Getaggter Commit liegt auf master."
+
+      # Gem-spezifisch und der eigentliche Gewinn dieser Pipeline: Der Tag ist
+      # das, worauf symdok pinnt, VERSION ist das, was zur Laufzeit gilt.
+      # Laufen die auseinander, pinnt der Konsument eine Version, die im Code
+      # anders heisst -- und niemand sieht es.
+      - name: Tag passt zu VERSION
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version=$(ruby -e 'require "./lib/docx_replace/version"; print DocxReplace::VERSION')
+          if [ "${TAG_NAME#v}" != "$version" ]; then
+            echo "::error::Tag ${TAG_NAME} passt nicht zu DocxReplace::VERSION (${version})."
+            exit 1
+          fi
+          echo "Tag und VERSION stimmen ueberein (${version})."
+
+      - name: Suite laeuft
+        run: |
+          bundle exec standardrb
+          bundle exec rspec
+
+      - name: Release anlegen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          # Ein zweiter Anlauf desselben Tags -- etwa von Hand, nachdem ein
+          # Schritt darunter gescheitert war -- soll nicht daran abbrechen,
+          # dass es das Release schon gibt. Genau dann braucht man ihn.
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "Release ${TAG} gibt es schon -- nichts zu tun."
+            exit 0
+          fi
+
+          # Der vorige Versions-Tag als Startpunkt der Liste. Ohne Angabe
+          # nimmt GitHub das letzte RELEASE, und solange es keins gibt, ist
+          # das der Anfang der Historie.
+          #
+          # Erst sammeln, dann auswerten, nicht durch eine Pipe: ein frueh
+          # geschlossenes "git tag |" reisst mit pipefail den Schritt mit.
+          alle_tags=$(git tag --list 'v[0-9]*' --sort=-v:refname)
+          vorher=$(awk -v t="${TAG}" 'gefunden { print; exit } $0 == t { gefunden = 1 }' <<< "$alle_tags")
+          echo "Tag: ${TAG}, Vorgaenger: ${vorher:-keiner}"
+
+          if [ -n "$vorher" ]; then
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+              -f tag_name="${TAG}" -f previous_tag_name="$vorher" --jq '.body' > "$RUNNER_TEMP/liste.md"
+          else
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+              -f tag_name="${TAG}" --jq '.body' > "$RUNNER_TEMP/liste.md"
+          fi
+
+          # Feldvergleich statt Vergleich der ganzen Zeile: Der Abschnitt darf
+          # "## [1.3.0]" oder "## [1.3.0] - 2026-09-09" heissen, mit oder ohne
+          # v im Namen.
+          : > "$RUNNER_TEMP/kopf.md"
+          awk -v mit="${TAG}" -v ohne="${TAG#v}" '
+            $1 == "##" && ($2 == mit || $2 == ohne || $2 == "["ohne"]" || $2 == "["mit"]") { drin = 1; next }
+            drin && /^## / { exit }
+            drin { print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/kopf.md"
+
+          if grep -q '[^[:space:]]' "$RUNNER_TEMP/kopf.md"; then
+            {
+              echo "## Hinweise zu dieser Version"
+              echo
+              cat "$RUNNER_TEMP/kopf.md"
+              echo
+              echo "---"
+              echo
+            } > "$RUNNER_TEMP/notizen.md"
+          else
+            echo "::warning::Kein Abschnitt zu ${TAG} in CHANGELOG.md." \
+                 "Wurde er vor dem Tag angelegt?"
+            : > "$RUNNER_TEMP/notizen.md"
+          fi
+          cat "$RUNNER_TEMP/liste.md" >> "$RUNNER_TEMP/notizen.md"
+
+          gh release create "${TAG}" --title "${TAG}" --notes-file "$RUNNER_TEMP/notizen.md"
+          echo "Release ${TAG} angelegt."
+
+  # Eigener Job, damit der Hinweis auch dann erscheint, wenn der Release-Job
+  # scheitert: Ein Tag ohne Release verdirbt die Notizen des naechsten. Die
+  # Liste bestimmt ihren Startpunkt aus der Tag-Liste, nicht aus den Releases.
+  hinweis:
+    needs: [release]
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions: {}
+
+    steps:
+      - name: Hinweis bei Fehlschlag
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          tag_esc=${TAG_NAME//%/%25}
+          tag_esc=${tag_esc//$'\r'/%0D}
+          tag_esc=${tag_esc//$'\n'/%0A}
+          echo "::error::Der Lauf ist gescheitert. Den Tag ${tag_esc} entfernen," \
+               "sonst wird er zum Startpunkt der naechsten Release-Notizen:"
+          echo "  git push origin ':refs/tags/${TAG_NAME}'"
+          echo "  git tag -d '${TAG_NAME}'"
