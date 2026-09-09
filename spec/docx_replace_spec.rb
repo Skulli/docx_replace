@@ -167,6 +167,38 @@ describe DocxReplace::Doc do
   end
 
   describe "reading from and writing to IO" do
+    it "opens a Pathname as a file, not as an IO" do
+      Dir.mktmpdir do |dir|
+        # Pathname answers to #read, which is exactly why it must not be
+        # mistaken for an IO.
+        template = Pathname.new(build_docx(File.join(dir, "template.docx"), body: "FOOBAR"))
+
+        doc = described_class.new(template)
+        expect(doc.replace("FOOBAR", "hello world")).to eq(1)
+
+        output = File.join(dir, "output.docx")
+        doc.commit(output)
+
+        expect(docx_part(output)).to match(/hello world/)
+      end
+    end
+
+    it "opens a File as a file, too" do
+      Dir.mktmpdir do |dir|
+        path = build_docx(File.join(dir, "template.docx"), body: "FOOBAR")
+
+        File.open(path) do |file|
+          doc = described_class.new(file)
+          expect(doc.replace("FOOBAR", "hello world")).to eq(1)
+
+          output = File.join(dir, "output.docx")
+          doc.commit(output)
+
+          expect(docx_part(output)).to match(/hello world/)
+        end
+      end
+    end
+
     it "reads a template straight out of an IO" do
       Dir.mktmpdir do |dir|
         template = build_docx(File.join(dir, "template.docx"), body: "FOOBAR", header: "FOOBAR")

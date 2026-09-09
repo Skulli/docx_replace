@@ -9,6 +9,16 @@ picked up at its unreleased `master` (December 2022) because header and footer
 support never made it into a release. It is not published to RubyGems;
 consumers pin it by git tag. Versions continue the inherited 1.2.1.
 
+## [1.3.1] - 2026-09-09
+
+### Fixed
+
+- `Doc.new` mistook a `Pathname` for an IO and passed it to
+  `Zip::File.open_buffer`, which raised `RuntimeError`. `Pathname` and `File`
+  answer to `#read` as well, so responding to `#read` does not identify an IO -
+  anything carrying a path of its own is now opened as a file. Introduced in
+  1.3.0; it broke every consumer passing `Rails.root.join(...)`.
+
 ## [1.3.0] - 2026-09-09
 
 ### Added
