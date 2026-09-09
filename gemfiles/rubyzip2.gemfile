@@ -1,0 +1,7 @@
+# Matrix-Gemfile: pins rubyzip to a single major version so that CI proves the
+# gem works across all of them. See .github/workflows/ci.yml.
+source "https://rubygems.org"
+
+gemspec path: ".."
+
+gem "rubyzip", "~> 2.4"
