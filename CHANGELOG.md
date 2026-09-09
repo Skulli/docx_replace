@@ -20,6 +20,9 @@ consumers pin it by git tag. Versions continue the inherited 1.2.1.
 - Support for rubyzip 2 and 3; the dependency is now `>= 1.2.1, < 4`.
 - CI across rubyzip 1, 2 and 3 (see `gemfiles/`), plus standardrb and
   dependabot.
+- Gemspec metadata: this fork as homepage and source, a changelog link, and an
+  `allowed_push_host` that makes an accidental `gem push` fail rather than
+  publish under the original gem's name.
 
 ### Changed
 
