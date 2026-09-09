@@ -8,11 +8,16 @@ module DocxReplace
   class Doc
     attr_reader :document_contents
 
-    # +source+ is either a path or any IO that responds to #read, which lets a
-    # template be read straight out of object storage without a local copy.
+    # +source+ is either a path or an IO, which lets a template be read straight
+    # out of object storage without a local copy.
     def initialize(source, temp_dir = nil)
-      @zip_file = source.respond_to?(:read) ? Zip::File.open_buffer(source) : Zip::File.new(source)
-      @source_path = @zip_file.name unless source.respond_to?(:read)
+      if path_like?(source)
+        @zip_file = Zip::File.new(source)
+        @source_path = @zip_file.name
+      else
+        @zip_file = Zip::File.open_buffer(source)
+      end
+
       @document_file_paths = find_query_file_paths
       @temp_dir = temp_dir
       read_docx_files
@@ -65,6 +70,12 @@ module DocxReplace
     end
 
     private
+
+    # Anything carrying a path of its own is opened as a file - Pathname and
+    # File answer to #read too, so #read alone does not identify an IO.
+    def path_like?(source)
+      source.is_a?(String) || source.respond_to?(:to_path)
+    end
 
     def find_query_file_paths
       @zip_file.entries.map(&:name).select do |entry|
