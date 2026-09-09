@@ -1,10 +1,10 @@
-require 'rake'
-require 'rspec/core/rake_task'
-require 'bundler/gem_tasks'
+require "rake"
+require "rspec/core/rake_task"
+require "bundler/gem_tasks"
 
-RSpec::Core::RakeTask.new('spec')
+RSpec::Core::RakeTask.new("spec")
 
-desc 'Run tests.'
+desc "Run tests."
 task default: :spec
 
 desc "Open an irb session preloaded with this library."

@@ -1,5 +1,5 @@
 describe DocxReplace::Doc do
-  let(:output_file) { Tempfile.new('docx_replace_tmp_output') }
+  let(:output_file) { Tempfile.new("docx_replace_tmp_output") }
   let(:output_text) { docx_content(output_file) }
 
   it "replaces a single variable in a very basic document" do
@@ -167,7 +167,7 @@ describe DocxReplace::Doc do
   end
 
   def project_root
-    File.expand_path(File.dirname(File.dirname(__FILE__)))
+    File.expand_path(File.dirname(__FILE__, 2))
   end
 
   def docx_content(path)

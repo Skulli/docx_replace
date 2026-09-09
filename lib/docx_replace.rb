@@ -1,21 +1,19 @@
-# encoding: UTF-8
-
 require "docx_replace/version"
-require 'zip'
-require 'tempfile'
+require "zip"
+require "tempfile"
 
 module DocxReplace
   class Doc
     attr_reader :document_contents
 
-    def initialize(path, temp_dir=nil)
+    def initialize(path, temp_dir = nil)
       @zip_file = Zip::File.new(path)
-      @document_file_paths = find_query_file_paths()
+      @document_file_paths = find_query_file_paths
       @temp_dir = temp_dir
       read_docx_files
     end
 
-    def replace(pattern, replacement, multiple_occurrences=false)
+    def replace(pattern, replacement, multiple_occurrences = false)
       replace = replacement.to_s.encode(xml: :text)
       @document_contents.each do |path, document|
         if multiple_occurrences
@@ -27,7 +25,7 @@ module DocxReplace
     end
 
     def matches(pattern)
-      @document_contents.values.join.scan(pattern).map{|match| match.first}
+      @document_contents.values.join.scan(pattern).map { |match| match.first }
     end
 
     def unique_matches(pattern)
@@ -36,8 +34,7 @@ module DocxReplace
 
     alias_method :uniq_matches, :unique_matches
 
-
-    def commit(new_path=nil)
+    def commit(new_path = nil)
       write_back_to_file(new_path)
     end
 
@@ -56,11 +53,11 @@ module DocxReplace
       end
     end
 
-    def write_back_to_file(new_path=nil)
-      if @temp_dir.nil?
-        temp_file = Tempfile.new('docxedit-')
+    def write_back_to_file(new_path = nil)
+      temp_file = if @temp_dir.nil?
+        Tempfile.new("docxedit-")
       else
-        temp_file = Tempfile.new('docxedit-', @temp_dir)
+        Tempfile.new("docxedit-", @temp_dir)
       end
 
       Zip::OutputStream.open(temp_file.path) do |zos|
