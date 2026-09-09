@@ -30,8 +30,9 @@ symdok an der Git-Quelle und nicht am Release. Der Upstream gilt als tot
 - **`#commit` ohne Pfad ist destruktiv:** es löscht die Quelldatei und schiebt
   das Ergebnis an deren Stelle. Bei IO-Quellen gibt es keinen Pfad, dort ist es
   ein `ArgumentError`.
-- **Actions sind in Forks deaktiviert,** bis man sie im Actions-Tab einmal
-  freigibt. Ohne das läuft die Matrix nie, und der grüne Haken fehlt schlicht.
+- **Actions laufen in diesem Fork** (in vielen Forks sind sie es nicht — hier
+  waren sie über den alten Upstream-Workflow schon freigegeben). Nachgewiesen
+  mit Lauf 34330670522: lint plus rspec über rubyzip 1/2/3, alle grün.
 
 ## Tests
 
