@@ -1,6 +1,7 @@
 require "docx_replace/version"
 require "zip"
 require "tempfile"
+require "fileutils"
 
 module DocxReplace
   class Doc
