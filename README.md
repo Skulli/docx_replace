@@ -78,8 +78,9 @@ bundle exec rspec          # 19 examples, 100 % line and branch coverage (enforc
 bundle exec standardrb     # lint
 ```
 
-Fixtures are built at runtime by `spec/support/docx_builder.rb` instead of being
-committed as binaries, so a spec states the document it relies on.
+New fixtures are built at runtime by `spec/support/docx_builder.rb` rather than
+committed as binaries, so a spec states the document it relies on. The three
+examples inherited from upstream still use `spec/fixtures/*.docx`.
 
 To run the suite against one specific rubyzip generation:
 

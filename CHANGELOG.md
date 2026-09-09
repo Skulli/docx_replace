@@ -9,6 +9,21 @@ picked up at its unreleased `master` (December 2022) because header and footer
 support never made it into a release. It is not published to RubyGems;
 consumers pin it by git tag. Versions continue the inherited 1.2.1.
 
+## [1.3.2] - 2026-09-09
+
+### Fixed
+
+- `#replace` used a string replacement, so `sub!`/`gsub!` read `\\1`, `\\0` and
+  `\\\\` in the value as backreferences: `'C:\\10\\Neu'` was written as
+  `'C:0\\Neu'` and still counted as a successful replacement. Inherited from
+  upstream; the block form leaves the value literal.
+- `#commit` moved the result with `FileUtils.mv(..., force: true)`, and forced
+  moves swallow every `SystemCallError`. An unwritable destination was reported
+  as success while it kept its old content. `mv` overwrites without `force`
+  anyway, and still falls back to a copy across filesystems.
+- SimpleCov's coverage gate no longer applies to partial runs, where it made
+  `rspec <file>:<line>` exit 2 despite passing.
+
 ## [1.3.1] - 2026-09-09
 
 ### Fixed

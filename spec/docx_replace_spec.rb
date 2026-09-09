@@ -90,6 +90,18 @@ describe DocxReplace::Doc do
       end
     end
 
+    it "raises instead of reporting success when the destination is unwritable" do
+      Dir.mktmpdir do |dir|
+        template = build_docx(File.join(dir, "template.docx"), body: "FOOBAR")
+
+        doc = described_class.new(template)
+        doc.replace("FOOBAR", "hello world")
+
+        expect { doc.commit(File.join(dir, "nicht-da", "output.docx")) }
+          .to raise_error(SystemCallError)
+      end
+    end
+
     it "writes its intermediate file to the given temp dir" do
       Dir.mktmpdir do |dir|
         Dir.mktmpdir do |temp_dir|
@@ -149,6 +161,21 @@ describe DocxReplace::Doc do
         doc = described_class.new(template)
 
         expect(doc.replace("FOOBAR", "hello world")).to eq(2)
+      end
+    end
+
+    it "treats the replacement as literal text, not as a pattern" do
+      Dir.mktmpdir do |dir|
+        template = build_docx(File.join(dir, "template.docx"), body: "FOOBAR")
+
+        doc = described_class.new(template)
+        doc.replace("FOOBAR", 'C:\10\Neu')
+        output = File.join(dir, "output.docx")
+        doc.commit(output)
+
+        # With a string replacement, gsub! would read \1 as a backreference and
+        # write "C:0\Neu" instead.
+        expect(docx_part(output)).to include('C:\10\Neu')
       end
     end
 
