@@ -2,13 +2,17 @@ require "docx_replace/version"
 require "zip"
 require "tempfile"
 require "fileutils"
+require "stringio"
 
 module DocxReplace
   class Doc
     attr_reader :document_contents
 
-    def initialize(path, temp_dir = nil)
-      @zip_file = Zip::File.new(path)
+    # +source+ is either a path or any IO that responds to #read, which lets a
+    # template be read straight out of object storage without a local copy.
+    def initialize(source, temp_dir = nil)
+      @zip_file = source.respond_to?(:read) ? Zip::File.open_buffer(source) : Zip::File.new(source)
+      @source_path = @zip_file.name unless source.respond_to?(:read)
       @document_file_paths = find_query_file_paths
       @temp_dir = temp_dir
       read_docx_files
@@ -49,6 +53,17 @@ module DocxReplace
       write_back_to_file(new_path)
     end
 
+    # Returns the result as a rewound StringIO rather than writing it to disk -
+    # the counterpart to #commit for object storage.
+    def to_io
+      buffer = Zip::OutputStream.write_buffer(StringIO.new("")) do |zos|
+        write_entries(zos)
+      end
+
+      buffer.rewind
+      buffer
+    end
+
     private
 
     def find_query_file_paths
@@ -71,22 +86,12 @@ module DocxReplace
         Tempfile.new("docxedit-", @temp_dir)
       end
 
-      Zip::OutputStream.open(temp_file.path) do |zos|
-        @zip_file.entries.each do |e|
-          unless @document_file_paths.include?(e.name)
-            zos.put_next_entry(e.name)
-            zos.print e.get_input_stream.read
-          end
-        end
-
-        @document_contents.each do |path, document|
-          zos.put_next_entry(path)
-          zos.print document
-        end
-      end
+      Zip::OutputStream.open(temp_file.path) { |zos| write_entries(zos) }
 
       if new_path.nil?
-        path = @zip_file.name
+        raise ArgumentError, "#commit needs a path when the template was read from an IO" if @source_path.nil?
+
+        path = @source_path
         FileUtils.rm(path)
       else
         path = new_path
@@ -95,6 +100,23 @@ module DocxReplace
       # The file exists at this point, so rubyzip's `create` flag was always a
       # no-op here. It was removed as a positional argument in rubyzip 3.
       @zip_file = Zip::File.new(path)
+      @source_path = @zip_file.name
+    end
+
+    # Copies every untouched entry over verbatim and writes the replaced parts
+    # in their place.
+    def write_entries(zos)
+      @zip_file.entries.each do |entry|
+        next if @document_file_paths.include?(entry.name)
+
+        zos.put_next_entry(entry.name)
+        zos.print entry.get_input_stream.read
+      end
+
+      @document_contents.each do |path, document|
+        zos.put_next_entry(path)
+        zos.print document
+      end
     end
   end
 end

@@ -166,6 +166,68 @@ describe DocxReplace::Doc do
     end
   end
 
+  describe "reading from and writing to IO" do
+    it "reads a template straight out of an IO" do
+      Dir.mktmpdir do |dir|
+        template = build_docx(File.join(dir, "template.docx"), body: "FOOBAR", header: "FOOBAR")
+
+        doc = described_class.new(StringIO.new(File.binread(template)))
+        expect(doc.replace("FOOBAR", "hello world", true)).to eq(2)
+
+        output = File.join(dir, "output.docx")
+        doc.commit(output)
+
+        expect(docx_part(output)).to match(/hello world/)
+        expect(docx_part(output, "word/header1.xml")).to match(/hello world/)
+      end
+    end
+
+    it "returns the result as a rewound IO" do
+      Dir.mktmpdir do |dir|
+        template = build_docx(File.join(dir, "template.docx"), body: "FOOBAR", header: "FOOBAR")
+
+        doc = described_class.new(template)
+        doc.replace("FOOBAR", "hello world", true)
+        io = doc.to_io
+
+        expect(io).to be_a(StringIO)
+        expect(io.pos).to eq(0)
+
+        # The buffer has to be a readable .docx again, not just any bytes.
+        roundtrip = File.join(dir, "roundtrip.docx")
+        File.binwrite(roundtrip, io.read)
+        expect(docx_part(roundtrip)).to match(/hello world/)
+        expect(docx_part(roundtrip, "word/header1.xml")).to match(/hello world/)
+        expect(docx_entries(roundtrip)).to eq(docx_entries(template))
+      end
+    end
+
+    it "goes from IO to IO without touching the disk" do
+      Dir.mktmpdir do |dir|
+        template = build_docx(File.join(dir, "template.docx"), body: "FOOBAR")
+        source = StringIO.new(File.binread(template))
+
+        doc = described_class.new(source)
+        doc.replace("FOOBAR", "hello world")
+
+        again = described_class.new(doc.to_io)
+
+        expect(again.matches(/(hello world)/)).to eq(["hello world"])
+      end
+    end
+
+    it "refuses to commit in place when there is no path to commit to" do
+      Dir.mktmpdir do |dir|
+        template = build_docx(File.join(dir, "template.docx"), body: "FOOBAR")
+
+        doc = described_class.new(StringIO.new(File.binread(template)))
+        doc.replace("FOOBAR", "hello world")
+
+        expect { doc.commit }.to raise_error(ArgumentError, /needs a path/)
+      end
+    end
+  end
+
   describe "#matches" do
     it "returns the captured group of every match across all parts" do
       Dir.mktmpdir do |dir|
