@@ -199,7 +199,6 @@ describe DocxReplace::Doc do
       end
     end
 
-
     it "reads a template straight out of an IO" do
       Dir.mktmpdir do |dir|
         template = build_docx(File.join(dir, "template.docx"), body: "FOOBAR", header: "FOOBAR")
