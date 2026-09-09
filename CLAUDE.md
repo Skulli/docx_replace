@@ -39,9 +39,11 @@ symdok an der Git-Quelle und nicht am Release. Der Upstream gilt als tot
 - `bundle exec rspec` — 19 Beispiele, Abdeckung ist per SimpleCov auf 100 %
   Zeilen und Branch festgenagelt (`minimum_coverage`). Neuer Code ohne Spec
   lässt die Suite durchfallen; das ist Absicht.
-- Fixtures entstehen zur Laufzeit über `spec/support/docx_builder.rb` statt als
-  Binärdateien im Repo — was ein Spec voraussetzt, steht damit im Spec. Keine
-  echten Kundenvorlagen hier ablegen, das Repo ist öffentlich.
+- Neue Fixtures entstehen zur Laufzeit über `spec/support/docx_builder.rb`
+  statt als Binärdateien — was ein Spec voraussetzt, steht damit im Spec. Die
+  drei vom Upstream geerbten Beispiele hängen weiter an
+  `spec/fixtures/basic.docx` und `multiple.docx`. Keine echten Kundenvorlagen
+  hier ablegen, das Repo ist öffentlich.
 - Matrix lokal: `BUNDLE_GEMFILE=gemfiles/rubyzip1.gemfile bundle exec rspec`
   (analog `rubyzip2`, `rubyzip3`).
 

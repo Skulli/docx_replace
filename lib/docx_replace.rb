@@ -34,11 +34,14 @@ module DocxReplace
         occurrences = document.scan(pattern).size
         next 0 if occurrences.zero?
 
+        # Block form on purpose: with a string replacement, sub!/gsub! read \1,
+        # \0 and \\ as backreferences, so a value like 'C:\10\Neu' would be
+        # mangled into 'C:0\Neu' - and reported as a successful replacement.
         if multiple_occurrences
-          document.gsub!(pattern, replace)
+          document.gsub!(pattern) { replace }
           occurrences
         else
-          document.sub!(pattern, replace)
+          document.sub!(pattern) { replace }
           1
         end
       end
@@ -109,9 +112,11 @@ module DocxReplace
       else
         path = new_path
       end
-      # force, rather than removing the destination first: an rm followed by an
-      # mv leaves a window in which neither the template nor the result exists.
-      FileUtils.mv(temp_file.path, path, force: true)
+      # No rm before the mv: that left a window in which neither the template nor
+      # the result existed. mv overwrites on its own. And no force: either -
+      # FileUtils.mv swallows every SystemCallError when forced, so #commit
+      # would report success while the destination kept its old content.
+      FileUtils.mv(temp_file.path, path)
       # The file exists at this point, so rubyzip's `create` flag was always a
       # no-op here. It was removed as a positional argument in rubyzip 3.
       @zip_file = Zip::File.new(path)
