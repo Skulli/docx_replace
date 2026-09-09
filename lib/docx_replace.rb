@@ -84,7 +84,9 @@ module DocxReplace
         path = new_path
       end
       FileUtils.mv(temp_file.path, path)
-      @zip_file = Zip::File.new(path, true)
+      # The file exists at this point, so rubyzip's `create` flag was always a
+      # no-op here. It was removed as a positional argument in rubyzip 3.
+      @zip_file = Zip::File.new(path)
     end
   end
 end
