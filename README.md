@@ -1,66 +1,96 @@
 # Docx Replace
 
-This gem allows you to generate .docx files in your rails or ruby app by
-embedding variables inside of a .docx template. This is purposefully
-meant to be simple and feature-light.
+Replace placeholders inside a `.docx` template — in the document body as well as
+in headers and footers. Purposefully simple and feature-light: it does not parse
+WordprocessingML, it substitutes strings in the XML parts and repackages the
+document.
 
-## Installation
+## About this fork
 
-Add this line to your application's Gemfile:
+This is a fork of [Beyond-Finance/docx_replace](https://github.com/Beyond-Finance/docx_replace),
+taken from its unreleased `master`, because header and footer support never made
+it into a published release (the last one, 1.2.1, is from 2020 and only touches
+`word/document.xml`).
 
-    gem 'docx_replace'
+It is **not published to RubyGems** — that name belongs to the original gem.
+Pin it by git tag:
 
-And then execute:
+```ruby
+gem "docx_replace", git: "https://github.com/Skulli/docx_replace.git", tag: "v1.3.0"
+```
 
-    $ bundle
-
-Or install it yourself as:
-
-    $ gem install docx_replace
+Works with rubyzip 1, 2 and 3; every release is tested against all three.
 
 ## Usage
 
-Inside of a rails controller, your code might look something like this (although I would recommend extracting most of this into a separate class):
-
 ```ruby
-def user_report
-  @user = User.find(params[:user_id])
+doc = DocxReplace::Doc.new("template.docx", Rails.root.join("tmp"))
 
-  respond_to do |format|
-    format.docx do
-      # Initialize DocxReplace with your template
-      doc = DocxReplace::Doc.new("#{Rails.root}/lib/docx_templates/my_template.docx", "#{Rails.root}/tmp")
+# Returns the number of occurrences replaced - see the caveat below, a zero
+# is worth acting on.
+doc.replace("FIRSTNAME", user.first_name)
+doc.replace("BIRTHDATE", user.birth_date, true)   # all occurrences
 
-      # Replace some variables. $var$ convention is used here, but not required.
-      doc.replace("FIRSTNAME", @user.first_name)
-      doc.replace("LASTNAME", @user.last_name)
-      doc.replace("USERBIO", @user.bio)
-
-      # Replace multiple occurrences
-      doc.replace("BIRTHDATE", @user.birth_date, true)
-
-      # Write the document back to a temporary file
-      tmp_file = Tempfile.new('word_template', "#{Rails.root}/tmp")
-      doc.commit(tmp_file.path)
-
-      # Respond to the request by sending the temp file
-      send_file tmp_file.path, filename: "user_#{@user.id}_report.docx", disposition: 'attachment'
-    end
-  end
-end
+doc.commit("result.docx")
 ```
 
-**Note:** Word sometimes wraps characters in XML tags, causing the replacement to not work. I recommend not using any special characters in your variable names.
+Headers and footers are handled the same way: `#replace` covers
+`word/document.xml`, `word/header*.xml` and `word/footer*.xml`.
 
+### Working without the disk
 
-## Contributing
+`Doc.new` also accepts any IO that responds to `#read`, and `#to_io` hands the
+result back as a rewound `StringIO`. Useful when the template lives in object
+storage and the result goes straight back there:
 
-1. Fork it
-2. Create your feature branch (`git checkout -b my-new-feature`)
-3. Commit your changes (`git commit -am 'Add some feature'`)
-4. Push to the branch (`git push origin my-new-feature`)
-5. Create new Pull Request
+```ruby
+doc = DocxReplace::Doc.new(StringIO.new(blob.download))
+doc.replace("FIRSTNAME", user.first_name)
+
+record.document.attach(io: doc.to_io, filename: "report.docx")
+```
+
+`#commit` without a path overwrites the template in place. That needs a path to
+overwrite, so it raises `ArgumentError` when the template came from an IO.
+
+### Finding placeholders
+
+```ruby
+doc.matches(/\$([A-Z_]+)\$/)         # every match, in document order
+doc.unique_matches(/\$([A-Z_]+)\$/)  # deduplicated
+```
+
+The pattern needs a capture group; the first group of each match is returned.
+
+## Caveat: Word splits text across runs
+
+Word may distribute a single word over several `<w:r>` runs, typically after
+editing. A placeholder that looks contiguous in Word then does not exist as a
+contiguous string in the XML, and the replacement silently does nothing. That is
+why `#replace` reports how many occurrences it replaced — check for zero rather
+than trusting the template. Placeholders without special characters survive
+better.
+
+## Development
+
+```bash
+bundle exec rspec          # 19 examples, 100 % line and branch coverage (enforced)
+bundle exec standardrb     # lint
+```
+
+Fixtures are built at runtime by `spec/support/docx_builder.rb` instead of being
+committed as binaries, so a spec states the document it relies on.
+
+To run the suite against one specific rubyzip generation:
+
+```bash
+BUNDLE_GEMFILE=gemfiles/rubyzip3.gemfile bundle exec rspec
+```
+
+CI does exactly that for rubyzip 1, 2 and 3 on Ruby 3.4.
 
 ## Credits
 
-Much of this code is based on an older gem called [docxedit](https://github.com/oliamb/docxedit). This has a few more features, but is very sensitive to the formatting of the .docx template.
+Originally written by Adam Albrecht, later maintained by Beyond Finance, and
+based in turn on an older gem called [docxedit](https://github.com/oliamb/docxedit).
+MIT licensed — see LICENSE.txt.
