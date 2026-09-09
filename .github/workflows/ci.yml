@@ -1,0 +1,54 @@
+# Lint once on the current Ruby, then prove the gem against every rubyzip
+# generation it claims to support. The matrix is the point of this workflow:
+# rubyzip 3 removed API this gem used to rely on, and nothing else guards that.
+name: Tests
+
+on:
+  pull_request:
+    branches:
+      - '*'
+  push:
+    branches:
+      - master
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+
+      - name: Standardrb Check
+        run: bundle exec standardrb
+
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby: ['3.1', '3.4']
+        rubyzip: ['1', '2', '3']
+
+    name: rspec (ruby ${{ matrix.ruby }}, rubyzip ${{ matrix.rubyzip }})
+
+    env:
+      BUNDLE_GEMFILE: ${{ github.workspace }}/gemfiles/rubyzip${{ matrix.rubyzip }}.gemfile
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+
+      - name: Run tests
+        run: bundle exec rspec

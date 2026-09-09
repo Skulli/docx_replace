@@ -15,6 +15,7 @@ Gem::Specification.new do |gem|
   gem.files = `git ls-files`.split($/)
   gem.executables = gem.files.grep(%r{^bin/}).map { |f| File.basename(f) }
   gem.require_paths = ["lib"]
+  gem.required_ruby_version = ">= 3.1"
   gem.add_runtime_dependency "rubyzip", ">= 1.2.1", "< 4"
   gem.add_development_dependency "rake"
   gem.add_development_dependency "rspec"
