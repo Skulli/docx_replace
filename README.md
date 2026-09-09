@@ -1,5 +1,10 @@
 # Docx Replace
 
+![Testing](https://github.com/Skulli/docx_replace/actions/workflows/ci.yml/badge.svg?branch=main)
+<a href="https://github.com/testdouble/standard" target="_blank">
+  <img alt="Ruby Code Style" src="https://img.shields.io/badge/Ruby_Code_Style-standard-brightgreen.svg" />
+</a>
+
 Replace placeholders inside a `.docx` template — in the document body as well as
 in headers and footers. Purposefully simple and feature-light: it does not parse
 WordprocessingML, it substitutes strings in the XML parts and repackages the

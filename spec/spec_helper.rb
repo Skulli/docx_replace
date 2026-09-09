@@ -3,7 +3,12 @@ require "simplecov"
 # Coverage is only complete when the whole suite runs, so the gate has to skip
 # partial runs - otherwise `rspec <file>:<line>` exits 2 despite "0 failures"
 # and every attempt at debugging one example looks like a failure.
-partial_run = ARGV.any? { |arg| arg.include?("_spec.rb") }
+#
+# Anything on the command line can narrow the run down: a file, a line, -e, a
+# tag. Rather than enumerate those, the gate only applies to a bare `rspec`,
+# which is how CI invokes it. CI is checked as well, in case it ever passes a
+# formatter option.
+partial_run = !ARGV.empty? && !ENV["CI"]
 
 SimpleCov.start do
   add_filter "/spec/"
