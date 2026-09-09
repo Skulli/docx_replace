@@ -87,16 +87,20 @@ module DocxReplace
       end
 
       Zip::OutputStream.open(temp_file.path) { |zos| write_entries(zos) }
+      # The path is all that is needed from here on; leaving the handle open
+      # until GC gets around to it serves nothing.
+      temp_file.close
 
       if new_path.nil?
         raise ArgumentError, "#commit needs a path when the template was read from an IO" if @source_path.nil?
 
         path = @source_path
-        FileUtils.rm(path)
       else
         path = new_path
       end
-      FileUtils.mv(temp_file.path, path)
+      # force, rather than removing the destination first: an rm followed by an
+      # mv leaves a window in which neither the template nor the result exists.
+      FileUtils.mv(temp_file.path, path, force: true)
       # The file exists at this point, so rubyzip's `create` flag was always a
       # no-op here. It was removed as a positional argument in rubyzip 3.
       @zip_file = Zip::File.new(path)

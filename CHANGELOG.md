@@ -40,6 +40,9 @@ consumers pin it by git tag. Versions continue the inherited 1.2.1.
   The file always exists at that point, so the flag was a no-op.
 - `fileutils` is required explicitly instead of relying on `tempfile` to pull
   it in.
+- Committing in place moves the result over the template with `force` instead
+  of removing the template first, which left a window in which neither file
+  existed. The intermediate tempfile is closed once it has been written.
 
 ## [1.2.1] - 2020-02-14
 
