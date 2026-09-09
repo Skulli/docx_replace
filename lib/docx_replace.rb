@@ -14,13 +14,23 @@ module DocxReplace
       read_docx_files
     end
 
+    # Returns how many occurrences were replaced across all parts. Zero is worth
+    # acting on: Word splits text across <w:r> runs, so a pattern that is
+    # visually present in the document may not exist as a contiguous string.
     def replace(pattern, replacement, multiple_occurrences = false)
       replace = replacement.to_s.encode(xml: :text)
-      @document_contents.each do |path, document|
+
+      @document_contents.sum do |_path, document|
+        document.force_encoding("UTF-8")
+        occurrences = document.scan(pattern).size
+        next 0 if occurrences.zero?
+
         if multiple_occurrences
-          document.force_encoding("UTF-8").gsub!(pattern, replace)
+          document.gsub!(pattern, replace)
+          occurrences
         else
-          document.force_encoding("UTF-8").sub!(pattern, replace)
+          document.sub!(pattern, replace)
+          1
         end
       end
     end
@@ -30,7 +40,7 @@ module DocxReplace
     end
 
     def unique_matches(pattern)
-      matches(pattern)
+      matches(pattern).uniq
     end
 
     alias_method :uniq_matches, :unique_matches

@@ -120,6 +120,38 @@ describe DocxReplace::Doc do
       end
     end
 
+    it "returns the number of replaced occurrences" do
+      Dir.mktmpdir do |dir|
+        template = build_docx(File.join(dir, "template.docx"),
+          body: "FOOBAR and FOOBAR", header: "FOOBAR")
+
+        doc = described_class.new(template)
+
+        expect(doc.replace("FOOBAR", "hello world", true)).to eq(3)
+      end
+    end
+
+    it "returns zero when the pattern is not present" do
+      Dir.mktmpdir do |dir|
+        template = build_docx(File.join(dir, "template.docx"), body: "nothing to see")
+
+        doc = described_class.new(template)
+
+        expect(doc.replace("FOOBAR", "hello world", true)).to eq(0)
+      end
+    end
+
+    it "counts one replacement per part when not replacing multiples" do
+      Dir.mktmpdir do |dir|
+        template = build_docx(File.join(dir, "template.docx"),
+          body: "FOOBAR and FOOBAR", header: "FOOBAR")
+
+        doc = described_class.new(template)
+
+        expect(doc.replace("FOOBAR", "hello world")).to eq(2)
+      end
+    end
+
     it "accepts replacements that are not strings" do
       Dir.mktmpdir do |dir|
         template = build_docx(File.join(dir, "template.docx"), body: "FOOBAR")
@@ -146,16 +178,15 @@ describe DocxReplace::Doc do
       end
     end
 
-    # Documents current behaviour: despite the name, #unique_matches (and its
-    # alias #uniq_matches) does not deduplicate — it just delegates to #matches.
-    it "does not deduplicate in #unique_matches" do
+    it "deduplicates in #unique_matches and its alias" do
       Dir.mktmpdir do |dir|
         template = build_docx(File.join(dir, "template.docx"), body: "$NAME$ and $NAME$ again")
 
         doc = described_class.new(template)
 
-        expect(doc.unique_matches(/\$([A-Z_]+)\$/)).to eq(%w[NAME NAME])
-        expect(doc.uniq_matches(/\$([A-Z_]+)\$/)).to eq(%w[NAME NAME])
+        expect(doc.matches(/\$([A-Z_]+)\$/)).to eq(%w[NAME NAME])
+        expect(doc.unique_matches(/\$([A-Z_]+)\$/)).to eq(%w[NAME])
+        expect(doc.uniq_matches(/\$([A-Z_]+)\$/)).to eq(%w[NAME])
       end
     end
   end

@@ -1,6 +1,9 @@
-# Lint once on the current Ruby, then prove the gem against every rubyzip
-# generation it claims to support. The matrix is the point of this workflow:
-# rubyzip 3 removed API this gem used to rely on, and nothing else guards that.
+# Lint once, then prove the gem against every rubyzip generation it claims to
+# support. The matrix over rubyzip is the point of this workflow: rubyzip 3
+# removed API this gem used to rely on, and nothing else guards that.
+#
+# Only Ruby 3.4 is exercised - that is what the sole consumer (symdok) runs, and
+# a second Ruby axis would triple the minutes for no signal we act on.
 name: Tests
 
 on:
@@ -33,10 +36,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ruby: ['3.1', '3.4']
         rubyzip: ['1', '2', '3']
 
-    name: rspec (ruby ${{ matrix.ruby }}, rubyzip ${{ matrix.rubyzip }})
+    name: rspec (rubyzip ${{ matrix.rubyzip }})
 
     env:
       BUNDLE_GEMFILE: ${{ github.workspace }}/gemfiles/rubyzip${{ matrix.rubyzip }}.gemfile
@@ -47,7 +49,7 @@ jobs:
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: ${{ matrix.ruby }}
+          ruby-version: '3.4'
           bundler-cache: true
 
       - name: Run tests
