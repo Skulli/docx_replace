@@ -67,19 +67,23 @@ doc.unique_matches(/\$([A-Z_]+)\$/)  # deduplicated
 
 The pattern needs a capture group; the first group of each match is returned.
 
-## Caveat: Word splits text across runs
+## Word splits text across runs
 
 Word may distribute a single word over several `<w:r>` runs, typically after
-editing. A placeholder that looks contiguous in Word then does not exist as a
-contiguous string in the XML, and the replacement silently does nothing. That is
-why `#replace` reports how many occurrences it replaced — check for zero rather
-than trusting the template. Placeholders without special characters survive
-better.
+editing or proofing. A String pattern is therefore matched with any tags between
+its characters, as long as they stay within one paragraph and no line break or
+tab lies in between. The replacement takes the formatting of the run the
+placeholder starts in; the tags inside the match are kept, so the remaining runs
+are left empty rather than removed.
+
+A Regexp pattern is matched against the raw XML as given. `#replace` still
+reports how many occurrences it replaced — zero means the placeholder is not in
+the template.
 
 ## Development
 
 ```bash
-bundle exec rspec          # 19 examples, 100 % line and branch coverage (enforced)
+bundle exec rspec          # 26 examples, 100 % line and branch coverage (enforced)
 bundle exec standardrb     # lint
 ```
 

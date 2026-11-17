@@ -20,28 +20,46 @@ module DocxReplace
 
       @document_file_paths = find_query_file_paths
       @temp_dir = temp_dir
+      @visible_text = {}
       read_docx_files
     end
 
-    # Returns how many occurrences were replaced across all parts. Zero is worth
-    # acting on: Word splits text across <w:r> runs, so a pattern that is
-    # visually present in the document may not exist as a contiguous string.
+    # Tags Word may put between the characters of one visible word: run
+    # boundaries, proofing marks, bookmarks. Paragraphs, line breaks and tabs
+    # are visible separators, so a match never spans them.
+    TAG_WITHIN_TEXT = "<(?!/?w:(?:p|br|cr|tab)\\b)[^>]*+>"
+    TAG = /<[^>]*>/
+
+    # Returns how many occurrences were replaced across all parts.
+    #
+    # Word splits text across <w:r> runs, so a String pattern also matches with
+    # tags between its characters (a Regexp is used as given). The replacement
+    # takes the place of the first character and with it that run's formatting;
+    # tags inside a match are kept, so the XML stays balanced.
     def replace(pattern, replacement, multiple_occurrences = false)
       replace = replacement.to_s.encode(xml: :text)
+      text = pattern.to_s unless pattern.is_a?(Regexp)
+      pattern = run_tolerant(text) if text
 
-      @document_contents.sum do |_path, document|
+      @document_contents.sum do |path, document|
         document.force_encoding("UTF-8")
+        # Most placeholders of a template set are absent from a given template;
+        # a plain substring check spares them the much slower tolerant match.
+        next 0 if text && !document.include?(text) && !visible_text(path).include?(text)
+
         occurrences = document.scan(pattern).size
         next 0 if occurrences.zero?
+
+        @visible_text.delete(path)
 
         # Block form on purpose: with a string replacement, sub!/gsub! read \1,
         # \0 and \\ as backreferences, so a value like 'C:\10\Neu' would be
         # mangled into 'C:0\Neu' - and reported as a successful replacement.
         if multiple_occurrences
-          document.gsub!(pattern) { replace }
+          document.gsub!(pattern) { |match| replace + match.scan(TAG).join }
           occurrences
         else
-          document.sub!(pattern) { replace }
+          document.sub!(pattern) { |match| replace + match.scan(TAG).join }
           1
         end
       end
@@ -73,6 +91,15 @@ module DocxReplace
     end
 
     private
+
+    def run_tolerant(text)
+      Regexp.new(text.chars.map { |char| Regexp.escape(char) }.join("(?:#{TAG_WITHIN_TEXT})*+"))
+    end
+
+    # The part with run boundaries removed, recomputed after each replacement.
+    def visible_text(path)
+      @visible_text[path] ||= @document_contents[path].gsub(Regexp.new(TAG_WITHIN_TEXT), "")
+    end
 
     # Anything carrying a path of its own is opened as a file - Pathname and
     # File answer to #read too, so #read alone does not identify an IO.

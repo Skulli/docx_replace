@@ -179,6 +179,55 @@ describe DocxReplace::Doc do
       end
     end
 
+    describe "placeholders Word split across runs" do
+      # What Word writes for a placeholder after editing or proofing, taken
+      # from a real template: one visible word, three runs.
+      let(:split) do
+        'AKT_DAT_</w:t></w:r><w:proofErr w:type="gramStart"/>' \
+          '<w:r w:rsidRPr="009F09F4"><w:rPr><w:b/></w:rPr><w:t>FORMAT(</w:t></w:r>' \
+          '<w:proofErr w:type="gramEnd"/><w:r><w:t>TT.MM.JJ)'
+      end
+
+      it "replaces them and keeps every tag, so the XML stays balanced" do
+        Dir.mktmpdir do |dir|
+          template = build_docx(File.join(dir, "template.docx"), body: "Datum: #{split}", footer: split)
+
+          doc = described_class.new(template)
+          expect(doc.replace("AKT_DAT_FORMAT(TT.MM.JJ)", "17.11.26", true)).to eq(2)
+          output = File.join(dir, "output.docx")
+          doc.commit(output)
+
+          expect(docx_part(output)).to include(
+            '<w:t>Datum: 17.11.26</w:t></w:r><w:proofErr w:type="gramStart"/>' \
+            '<w:r w:rsidRPr="009F09F4"><w:rPr><w:b/></w:rPr><w:t></w:t></w:r>' \
+            '<w:proofErr w:type="gramEnd"/><w:r><w:t></w:t></w:r>'
+          )
+          expect(docx_part(output, "word/footer1.xml")).to include("<w:t>17.11.26</w:t>")
+        end
+      end
+
+      it "does not match across paragraphs, line breaks or tabs" do
+        Dir.mktmpdir do |dir|
+          template = build_docx(File.join(dir, "template.docx"),
+            body: ["FOO", "BAR", "FOO</w:t><w:br/><w:t>BAR", "FOO</w:t><w:tab/><w:t>BAR"])
+
+          doc = described_class.new(template)
+
+          expect(doc.replace("FOOBAR", "hello world", true)).to eq(0)
+        end
+      end
+
+      it "uses a Regexp pattern as given" do
+        Dir.mktmpdir do |dir|
+          template = build_docx(File.join(dir, "template.docx"), body: ["FOO1", "FOO</w:t></w:r><w:r><w:t>2"], header: "BAR")
+
+          doc = described_class.new(template)
+
+          expect(doc.replace(/FOO\d/, "hello world", true)).to eq(1)
+        end
+      end
+    end
+
     it "accepts replacements that are not strings" do
       Dir.mktmpdir do |dir|
         template = build_docx(File.join(dir, "template.docx"), body: "FOOBAR")

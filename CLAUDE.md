@@ -19,11 +19,12 @@ symdok an der Git-Quelle und nicht am Release. Der Upstream gilt als tot
 
 ## Stolperfallen
 
-- **Word zerlegt Platzhalter über `<w:r>`-Runs.** Ein Marker, der im Dokument
-  sichtbar ist, existiert dann nicht als zusammenhängender String und wird
-  stillschweigend nicht ersetzt. Deshalb gibt `#replace` die Trefferzahl
-  zurück — eine 0 ist ein Befund, kein Nichts. Marker ohne Sonderzeichen
-  halten besser.
+- **Word zerlegt Platzhalter über `<w:r>`-Runs.** String-Muster werden
+  deshalb mit beliebigen Tags zwischen den Zeichen gesucht (innerhalb eines
+  Absatzes, nie über `w:br`/`w:tab`); die Tags im Treffer bleiben stehen,
+  sonst bricht das XML. Ohne die Vorprüfung auf den sichtbaren Text
+  (`visible_text`) ist das ~30× langsamer — nicht „vereinfachen“.
+  Regexp-Muster laufen weiter roh über das XML.
 - **`Zip::File#read` liefert `ASCII-8BIT`.** Vergleiche gegen UTF-8-Strings
   scheitern mit `Encoding::CompatibilityError`; der Spec-Helper `docx_part`
   setzt die Kodierung deshalb zurück.
@@ -36,7 +37,7 @@ symdok an der Git-Quelle und nicht am Release. Der Upstream gilt als tot
 
 ## Tests
 
-- `bundle exec rspec` — 19 Beispiele, Abdeckung ist per SimpleCov auf 100 %
+- `bundle exec rspec` — 26 Beispiele, Abdeckung ist per SimpleCov auf 100 %
   Zeilen und Branch festgenagelt (`minimum_coverage`). Neuer Code ohne Spec
   lässt die Suite durchfallen; das ist Absicht.
 - Neue Fixtures entstehen zur Laufzeit über `spec/support/docx_builder.rb`
