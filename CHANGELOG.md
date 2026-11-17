@@ -16,10 +16,18 @@ consumers pin it by git tag. Versions continue the inherited 1.2.1.
 - `#replace` with a String pattern now finds placeholders that Word split
   across several `<w:r>` runs (after editing, or around proofing marks). Before,
   such a placeholder looked intact in Word but was silently left in place. The
-  match stays within one paragraph and never spans a line break or tab; the
-  replacement takes the formatting of the first run, and every tag inside the
-  match is kept. A plain substring check on the visible text keeps absent
-  placeholders as cheap as before. Regexp patterns are unchanged.
+  match stays within one paragraph and ends at anything that shows on the page
+  (breaks, tabs, symbols, non-breaking hyphens, note references, drawings) or
+  holds hidden text (tracked deletions, field codes). The replacement takes the
+  formatting of the first run, and every tag inside the match is kept. A plain
+  substring check on the visible text keeps absent placeholders cheap.
+  Regexp patterns and String patterns containing `<` are matched against the
+  raw XML as before.
+
+### Changed
+
+- `#replace` raises `ArgumentError` for an empty or `nil` pattern. `nil` used to
+  raise `TypeError`; an empty String matched between every character.
 
 ## [1.3.2] - 2026-09-09
 

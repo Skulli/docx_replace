@@ -71,19 +71,21 @@ The pattern needs a capture group; the first group of each match is returned.
 
 Word may distribute a single word over several `<w:r>` runs, typically after
 editing or proofing. A String pattern is therefore matched with any tags between
-its characters, as long as they stay within one paragraph and no line break or
-tab lies in between. The replacement takes the formatting of the run the
+its characters, as long as they stay within one paragraph and nothing visible
+(break, tab, symbol, note reference, drawing) or hidden (tracked deletion, field
+code) lies in between. The replacement takes the formatting of the run the
 placeholder starts in; the tags inside the match are kept, so the remaining runs
 are left empty rather than removed.
 
-A Regexp pattern is matched against the raw XML as given. `#replace` still
+A Regexp pattern, or a String containing `<`, is matched against the raw XML
+as given. An empty pattern raises `ArgumentError`. `#replace` still
 reports how many occurrences it replaced — zero means the placeholder is not in
 the template.
 
 ## Development
 
 ```bash
-bundle exec rspec          # 26 examples, 100 % line and branch coverage (enforced)
+bundle exec rspec          # 29 examples, 100 % line and branch coverage (enforced)
 bundle exec standardrb     # lint
 ```
 

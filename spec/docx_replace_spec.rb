@@ -206,14 +206,33 @@ describe DocxReplace::Doc do
         end
       end
 
-      it "does not match across paragraphs, line breaks or tabs" do
+      it "does not match across anything that shows on the page or holds hidden text" do
+        separators = %w[<w:br/> <w:cr/> <w:tab/> <w:ptab/> <w:noBreakHyphen/> <w:softHyphen/>]
+        separators += ['<w:sym w:char="F0E0"/>', '<w:footnoteReference w:id="1"/>', "<w:drawing></w:drawing>"]
+        lines = separators.map { |tag| "FOO</w:t>#{tag}<w:t>BAR" }
+        lines << "x</w:t></w:r><w:del><w:r><w:delText>FOO</w:delText></w:r></w:del><w:r><w:t>BAR"
+        lines << "x</w:t></w:r><w:r><w:instrText>FOO</w:instrText></w:r><w:r><w:t>BAR"
+
         Dir.mktmpdir do |dir|
-          template = build_docx(File.join(dir, "template.docx"),
-            body: ["FOO", "BAR", "FOO</w:t><w:br/><w:t>BAR", "FOO</w:t><w:tab/><w:t>BAR"])
+          template = build_docx(File.join(dir, "template.docx"), body: ["FOO", "BAR", *lines])
 
           doc = described_class.new(template)
 
-          expect(doc.replace("FOOBAR", "hello world", true)).to eq(0)
+          # The second call is answered from the cached visible text.
+          2.times { expect(doc.replace("FOOBAR", "hello world", true)).to eq(0) }
+        end
+      end
+
+      it "notices when a part was changed from outside" do
+        Dir.mktmpdir do |dir|
+          template = build_docx(File.join(dir, "template.docx"), body: "nothing")
+
+          doc = described_class.new(template)
+          expect(doc.replace("FOOBAR", "hello world")).to eq(0)
+
+          doc.document_contents["word/document.xml"].sub!("nothing", "FOO</w:t></w:r><w:r><w:t>BAR")
+
+          expect(doc.replace("FOOBAR", "hello world")).to eq(1)
         end
       end
 
@@ -224,6 +243,28 @@ describe DocxReplace::Doc do
           doc = described_class.new(template)
 
           expect(doc.replace(/FOO\d/, "hello world", true)).to eq(1)
+        end
+      end
+
+      it "matches a String containing markup against the raw XML, as before" do
+        Dir.mktmpdir do |dir|
+          template = build_docx(File.join(dir, "template.docx"), body: "FOO")
+
+          doc = described_class.new(template)
+          expect(doc.replace("<w:t>FOO</w:t>", "hello world")).to eq(1)
+
+          expect(doc.document_contents["word/document.xml"]).to include("<w:r>hello world</w:r>")
+        end
+      end
+
+      it "refuses an empty pattern instead of matching between every character" do
+        Dir.mktmpdir do |dir|
+          template = build_docx(File.join(dir, "template.docx"), body: "FOO")
+
+          doc = described_class.new(template)
+
+          expect { doc.replace(nil, "X", true) }.to raise_error(ArgumentError, /empty/)
+          expect { doc.replace("", "X", true) }.to raise_error(ArgumentError, /empty/)
         end
       end
     end
