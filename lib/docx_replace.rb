@@ -20,30 +20,48 @@ module DocxReplace
 
       @document_file_paths = find_query_file_paths
       @temp_dir = temp_dir
+      @visible_text = {}
       read_docx_files
     end
 
-    # Returns how many occurrences were replaced across all parts. Zero is worth
-    # acting on: Word splits text across <w:r> runs, so a pattern that is
-    # visually present in the document may not exist as a contiguous string.
+    # Tags Word may put between the characters of one visible word: run
+    # boundaries, proofing marks, bookmarks. Everything that shows on the page
+    # (paragraphs, breaks, tabs, symbols, note references, drawings) or holds
+    # text that does not (deletions, field codes) ends a match.
+    TAG_WITHIN_TEXT = %r{<(?!/?w:(?:p|br|cr|tab|ptab|noBreakHyphen|softHyphen|sym|
+      footnoteReference|endnoteReference|drawing|pict|object|fldChar|delText|instrText)[\s/>])[^>]*+>}x
+    TAG = /<[^>]*>/
+
+    # Returns how many occurrences were replaced across all parts.
+    #
+    # Word splits text across <w:r> runs, so a String pattern also matches with
+    # tags between its characters. The replacement takes the place of the first
+    # character and with it that run's formatting; tags inside a match are kept,
+    # so the XML stays balanced. A Regexp, or a String containing markup, is
+    # matched against the raw XML as given.
     def replace(pattern, replacement, multiple_occurrences = false)
       replace = replacement.to_s.encode(xml: :text)
+      text = pattern.to_s unless pattern.is_a?(Regexp)
+      raise ArgumentError, "pattern must not be empty" if text == ""
 
-      @document_contents.sum do |_path, document|
+      tolerant = text && !text.include?("<")
+      pattern = run_tolerant(text) if tolerant
+
+      @document_contents.sum do |path, document|
         document.force_encoding("UTF-8")
-        occurrences = document.scan(pattern).size
-        next 0 if occurrences.zero?
+        # Most placeholders of a template set are absent from a given template;
+        # a plain substring check spares them the much slower tolerant match.
+        next 0 if tolerant && !document.include?(text) && !visible_text(path).include?(text)
 
         # Block form on purpose: with a string replacement, sub!/gsub! read \1,
         # \0 and \\ as backreferences, so a value like 'C:\10\Neu' would be
         # mangled into 'C:0\Neu' - and reported as a successful replacement.
-        if multiple_occurrences
-          document.gsub!(pattern) { replace }
-          occurrences
-        else
-          document.sub!(pattern) { replace }
-          1
+        count = 0
+        document.public_send(multiple_occurrences ? :gsub! : :sub!, pattern) do |match|
+          count += 1
+          tolerant ? replace + match.scan(TAG).join : replace
         end
+        count
       end
     end
 
@@ -73,6 +91,22 @@ module DocxReplace
     end
 
     private
+
+    def run_tolerant(text)
+      Regexp.new(text.chars.map { |char| Regexp.escape(char) }.join("(?:#{TAG_WITHIN_TEXT})*+"))
+    end
+
+    # The part with run boundaries removed. Cached against a copy of the part,
+    # because document_contents is public and may be changed from outside.
+    def visible_text(path)
+      document = @document_contents[path]
+      snapshot, visible = @visible_text[path]
+      return visible if snapshot == document
+
+      visible = document.gsub(TAG_WITHIN_TEXT, "")
+      @visible_text[path] = [document.dup, visible]
+      visible
+    end
 
     # Anything carrying a path of its own is opened as a file - Pathname and
     # File answer to #read too, so #read alone does not identify an IO.

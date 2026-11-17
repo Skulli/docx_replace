@@ -179,6 +179,96 @@ describe DocxReplace::Doc do
       end
     end
 
+    describe "placeholders Word split across runs" do
+      # What Word writes for a placeholder after editing or proofing, taken
+      # from a real template: one visible word, three runs.
+      let(:split) do
+        'AKT_DAT_</w:t></w:r><w:proofErr w:type="gramStart"/>' \
+          '<w:r w:rsidRPr="009F09F4"><w:rPr><w:b/></w:rPr><w:t>FORMAT(</w:t></w:r>' \
+          '<w:proofErr w:type="gramEnd"/><w:r><w:t>TT.MM.JJ)'
+      end
+
+      it "replaces them and keeps every tag, so the XML stays balanced" do
+        Dir.mktmpdir do |dir|
+          template = build_docx(File.join(dir, "template.docx"), body: "Datum: #{split}", footer: split)
+
+          doc = described_class.new(template)
+          expect(doc.replace("AKT_DAT_FORMAT(TT.MM.JJ)", "17.11.26", true)).to eq(2)
+          output = File.join(dir, "output.docx")
+          doc.commit(output)
+
+          expect(docx_part(output)).to include(
+            '<w:t>Datum: 17.11.26</w:t></w:r><w:proofErr w:type="gramStart"/>' \
+            '<w:r w:rsidRPr="009F09F4"><w:rPr><w:b/></w:rPr><w:t></w:t></w:r>' \
+            '<w:proofErr w:type="gramEnd"/><w:r><w:t></w:t></w:r>'
+          )
+          expect(docx_part(output, "word/footer1.xml")).to include("<w:t>17.11.26</w:t>")
+        end
+      end
+
+      it "does not match across anything that shows on the page or holds hidden text" do
+        separators = %w[<w:br/> <w:cr/> <w:tab/> <w:ptab/> <w:noBreakHyphen/> <w:softHyphen/>]
+        separators += ['<w:sym w:char="F0E0"/>', '<w:footnoteReference w:id="1"/>', "<w:drawing></w:drawing>"]
+        lines = separators.map { |tag| "FOO</w:t>#{tag}<w:t>BAR" }
+        lines << "x</w:t></w:r><w:del><w:r><w:delText>FOO</w:delText></w:r></w:del><w:r><w:t>BAR"
+        lines << "x</w:t></w:r><w:r><w:instrText>FOO</w:instrText></w:r><w:r><w:t>BAR"
+
+        Dir.mktmpdir do |dir|
+          template = build_docx(File.join(dir, "template.docx"), body: ["FOO", "BAR", *lines])
+
+          doc = described_class.new(template)
+
+          # The second call is answered from the cached visible text.
+          2.times { expect(doc.replace("FOOBAR", "hello world", true)).to eq(0) }
+        end
+      end
+
+      it "notices when a part was changed from outside" do
+        Dir.mktmpdir do |dir|
+          template = build_docx(File.join(dir, "template.docx"), body: "nothing")
+
+          doc = described_class.new(template)
+          expect(doc.replace("FOOBAR", "hello world")).to eq(0)
+
+          doc.document_contents["word/document.xml"].sub!("nothing", "FOO</w:t></w:r><w:r><w:t>BAR")
+
+          expect(doc.replace("FOOBAR", "hello world")).to eq(1)
+        end
+      end
+
+      it "uses a Regexp pattern as given" do
+        Dir.mktmpdir do |dir|
+          template = build_docx(File.join(dir, "template.docx"), body: ["FOO1", "FOO</w:t></w:r><w:r><w:t>2"], header: "BAR")
+
+          doc = described_class.new(template)
+
+          expect(doc.replace(/FOO\d/, "hello world", true)).to eq(1)
+        end
+      end
+
+      it "matches a String containing markup against the raw XML, as before" do
+        Dir.mktmpdir do |dir|
+          template = build_docx(File.join(dir, "template.docx"), body: "FOO")
+
+          doc = described_class.new(template)
+          expect(doc.replace("<w:t>FOO</w:t>", "hello world")).to eq(1)
+
+          expect(doc.document_contents["word/document.xml"]).to include("<w:r>hello world</w:r>")
+        end
+      end
+
+      it "refuses an empty pattern instead of matching between every character" do
+        Dir.mktmpdir do |dir|
+          template = build_docx(File.join(dir, "template.docx"), body: "FOO")
+
+          doc = described_class.new(template)
+
+          expect { doc.replace(nil, "X", true) }.to raise_error(ArgumentError, /empty/)
+          expect { doc.replace("", "X", true) }.to raise_error(ArgumentError, /empty/)
+        end
+      end
+    end
+
     it "accepts replacements that are not strings" do
       Dir.mktmpdir do |dir|
         template = build_docx(File.join(dir, "template.docx"), body: "FOOBAR")
