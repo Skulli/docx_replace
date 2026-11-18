@@ -269,6 +269,35 @@ describe DocxReplace::Doc do
       end
     end
 
+    describe "line breaks in the replacement" do
+      it "writes them as Word line breaks, also after a split placeholder" do
+        Dir.mktmpdir do |dir|
+          template = build_docx(File.join(dir, "template.docx"),
+            body: ["FOOBAR", "FOO</w:t></w:r><w:r><w:t>BAR"])
+
+          doc = described_class.new(template)
+          expect(doc.replace("FOOBAR", "eins\nzwei\r\ndrei", true)).to eq(2)
+
+          breaks = '</w:t><w:br/><w:t xml:space="preserve">'
+          expect(doc.document_contents["word/document.xml"])
+            .to include("<w:t>eins#{breaks}zwei#{breaks}drei</w:t></w:r>")
+            .and include("<w:t>eins#{breaks}zwei#{breaks}drei</w:t></w:r><w:r><w:t></w:t></w:r>")
+        end
+      end
+
+      it "keeps the newline outside a text run, where no element may go" do
+        Dir.mktmpdir do |dir|
+          template = build_docx(File.join(dir, "template.docx"),
+            body: "x</w:t></w:r><w:r><w:instrText>FOOBAR</w:instrText></w:r><w:r><w:t>y")
+
+          doc = described_class.new(template)
+          doc.replace("FOOBAR", "eins\nzwei")
+
+          expect(doc.document_contents["word/document.xml"]).to include("<w:instrText>eins\nzwei</w:instrText>")
+        end
+      end
+    end
+
     it "accepts replacements that are not strings" do
       Dir.mktmpdir do |dir|
         template = build_docx(File.join(dir, "template.docx"), body: "FOOBAR")

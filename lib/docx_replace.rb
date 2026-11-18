@@ -31,6 +31,8 @@ module DocxReplace
     TAG_WITHIN_TEXT = %r{<(?!/?w:(?:p|br|cr|tab|ptab|noBreakHyphen|softHyphen|sym|
       footnoteReference|endnoteReference|drawing|pict|object|fldChar|delText|instrText)[\s/>])[^>]*+>}x
     TAG = /<[^>]*>/
+    LINE_BREAK = /\r\n?|\n/
+    TEXT_OPENING = /\A<w:t[\s>]/
 
     # Returns how many occurrences were replaced across all parts.
     #
@@ -38,9 +40,11 @@ module DocxReplace
     # tags between its characters. The replacement takes the place of the first
     # character and with it that run's formatting; tags inside a match are kept,
     # so the XML stays balanced. A Regexp, or a String containing markup, is
-    # matched against the raw XML as given.
+    # matched against the raw XML as given. Line breaks in the replacement
+    # become Word line breaks.
     def replace(pattern, replacement, multiple_occurrences = false)
       replace = replacement.to_s.encode(xml: :text)
+      breaks = replace.match?(LINE_BREAK)
       text = pattern.to_s unless pattern.is_a?(Regexp)
       raise ArgumentError, "pattern must not be empty" if text == ""
 
@@ -59,7 +63,8 @@ module DocxReplace
         count = 0
         document.public_send(multiple_occurrences ? :gsub! : :sub!, pattern) do |match|
           count += 1
-          tolerant ? replace + match.scan(TAG).join : replace
+          value = breaks ? with_line_breaks(replace, document, Regexp.last_match.begin(0)) : replace
+          tolerant ? value + match.scan(TAG).join : value
         end
         count
       end
@@ -94,6 +99,15 @@ module DocxReplace
 
     def run_tolerant(text)
       Regexp.new(text.chars.map { |char| Regexp.escape(char) }.join("(?:#{TAG_WITHIN_TEXT})*+"))
+    end
+
+    # A line break is an element of its own and can only be written inside a
+    # text run. Elsewhere (field codes, attribute values) the newline stays.
+    def with_line_breaks(value, document, position)
+      opening = document.rindex("<", position).to_i
+      return value unless document[opening, 6].match?(TEXT_OPENING)
+
+      value.gsub(LINE_BREAK, '</w:t><w:br/><w:t xml:space="preserve">')
     end
 
     # The part with run boundaries removed. Cached against a copy of the part,

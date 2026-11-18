@@ -38,7 +38,7 @@ symdok an der Git-Quelle und nicht am Release. Der Upstream gilt als tot
 
 ## Tests
 
-- `bundle exec rspec` — 29 Beispiele, Abdeckung ist per SimpleCov auf 100 %
+- `bundle exec rspec` — 31 Beispiele, Abdeckung ist per SimpleCov auf 100 %
   Zeilen und Branch festgenagelt (`minimum_coverage`). Neuer Code ohne Spec
   lässt die Suite durchfallen; das ist Absicht.
 - Neue Fixtures entstehen zur Laufzeit über `spec/support/docx_builder.rb`
