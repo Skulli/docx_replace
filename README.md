@@ -82,10 +82,16 @@ as given. An empty pattern raises `ArgumentError`. `#replace` still
 reports how many occurrences it replaced — zero means the placeholder is not in
 the template.
 
+## Line breaks
+
+Line breaks in the replacement (`\n`, `\r\n`, `\r`) become Word line breaks
+(`<w:br/>`) when the placeholder sits in a text run. Elsewhere, such as in field
+codes, the newline is written as is.
+
 ## Development
 
 ```bash
-bundle exec rspec          # 29 examples, 100 % line and branch coverage (enforced)
+bundle exec rspec          # 31 examples, 100 % line and branch coverage (enforced)
 bundle exec standardrb     # lint
 ```
 

@@ -9,6 +9,15 @@ picked up at its unreleased `master` (December 2022) because header and footer
 support never made it into a release. It is not published to RubyGems;
 consumers pin it by git tag. Versions continue the inherited 1.2.1.
 
+## [Unreleased]
+
+### Added
+
+- Line breaks in the replacement become Word line breaks. Word renders a
+  newline inside `<w:t>` as a space, so multi-line values used to end up on
+  one line. Outside a text run (field codes, attribute values) the newline is
+  kept, since no element may go there.
+
 ## [1.3.3] - 2026-11-17
 
 ### Fixed
