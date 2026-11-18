@@ -9,7 +9,7 @@ picked up at its unreleased `master` (December 2022) because header and footer
 support never made it into a release. It is not published to RubyGems;
 consumers pin it by git tag. Versions continue the inherited 1.2.1.
 
-## [Unreleased]
+## [1.4.0] - 2026-11-18
 
 ### Added
 
